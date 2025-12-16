@@ -253,24 +253,41 @@ jobs:
         echo "=========================================="
         mkdir -p app/src/main/jniLibs
         
+        # arm64-v8a
+        echo "提取 arm64-v8a..."
+        unzip -q -o app/libs/cfdata-arm64.aar -d app/libs/temp-arm64/
+        cp -r app/libs/temp-arm64/jni/arm64-v8a app/src/main/jniLibs/ && echo "✓ arm64-v8a 完成" || echo "✗ arm64-v8a 失败"
         
-        # 提取 x86
-        if [ -f "app/libs/cfdata-x86.aar" ]; then
-          unzip -q -o app/libs/cfdata-x86.aar -d app/libs/temp-x86/ || true
-          if [ -d "app/libs/temp-x86/jni/x86" ]; then
-            cp -r app/libs/temp-x86/jni/x86 app/src/main/jniLibs/ || true
-          fi
-          rm -rf app/libs/temp-x86
-        fi
+        # armeabi-v7a
+        echo "提取 armeabi-v7a..."
+        unzip -q -o app/libs/cfdata-arm.aar -d app/libs/temp-arm/
+        cp -r app/libs/temp-arm/jni/armeabi-v7a app/src/main/jniLibs/ && echo "✓ armeabi-v7a 完成" || echo "✗ armeabi-v7a 失败"
         
-        # 提取 x86_64
-        if [ -f "app/libs/cfdata-x86_64.aar" ]; then
-          unzip -q -o app/libs/cfdata-x86_64.aar -d app/libs/temp-x86_64/ || true
-          if [ -d "app/libs/temp-x86_64/jni/x86_64" ]; then
-            cp -r app/libs/temp-x86_64/jni/x86_64 app/src/main/jniLibs/ || true
-          fi
-          rm -rf app/libs/temp-x86_64
-        fi
+        # x86
+        echo "提取 x86..."
+        unzip -q -o app/libs/cfdata-x86.aar -d app/libs/temp-x86/
+        cp -r app/libs/temp-x86/jni/x86 app/src/main/jniLibs/ && echo "✓ x86 完成" || echo "✗ x86 失败"
+        
+        # x86_64
+        echo "提取 x86_64..."
+        unzip -q -o app/libs/cfdata-x86_64.aar -d app/libs/temp-x86_64/
+        cp -r app/libs/temp-x86_64/jni/x86_64 app/src/main/jniLibs/ && echo "✓ x86_64 完成" || echo "✗ x86_64 失败"
+        
+        # 复制一个 AAR 作为主依赖（提供 Java 类）
+        echo "复制 cfdata.aar 用于Gradle依赖..."
+        cp app/libs/cfdata-arm64.aar app/libs/cfdata.aar
+        ls -lh app/libs/cfdata.aar
+        
+        echo "=========================================="
+        echo "验证 jniLibs 结构："
+        echo "=========================================="
+        find app/src/main/jniLibs -name "*.so" | while read so_file; do
+          echo "  $(du -h "$so_file" | cut -f1) - "$so_file""
+        done
+        
+        echo "=========================================="
+        echo "✓ Native库提取完成"
+        echo "=========================================="
         
     - name: 生成签名密钥库
       run: |
