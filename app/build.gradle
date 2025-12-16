@@ -71,7 +71,8 @@ dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'com.google.android.material:material:1.11.0'
     
-    // Go mobile library - 多架构支持
-    implementation fileTree(dir: 'libs', include: ['*.aar'])
+    // Go mobile library - 只引入一个AAR提供Java类
+    // native库（.so文件）已通过jniLibs目录提供所有架构
+    implementation(name: 'cfdata', ext: 'aar')
 }
 
