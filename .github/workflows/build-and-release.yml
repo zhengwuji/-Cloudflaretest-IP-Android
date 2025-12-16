@@ -404,30 +404,26 @@ jobs:
         
         if [ -d "$APK_DIR" ]; then
           echo "找到的APK文件："
-          ls -lh "$APK_DIR"/*.apk 2>/dev/null || true
+          ls -lh "$APK_DIR"/*.apk 2>/dev/null || echo "未找到APK文件"
           
           # 统计APK数量
-          APK_COUNT=$(find "$APK_DIR" -name "*.apk" -type f | wc -l)
+          APK_COUNT=$(find "$APK_DIR" -name "*.apk" -type f 2>/dev/null | wc -l)
           echo "APK文件数量: $APK_COUNT"
           
-          if [ $APK_COUNT -eq 0 ]; then
-            echo "错误: 未找到任何APK文件"
+          if [ $APK_COUNT -gt 0 ]; then
+            echo "✓ 成功找到 $APK_COUNT 个APK文件"
+            echo "apk_count=$APK_COUNT" >> $GITHUB_OUTPUT
+            
+            # 列出所有APK文件（用于调试）
+            find "$APK_DIR" -name "*.apk" -type f 2>/dev/null | while read apk; do
+              echo "  - $(basename $apk)"
+            done
+          else
+            echo "❌ 错误: 未找到任何APK文件"
             exit 1
           fi
-          
-          # 将APK文件路径列表保存（用于上传）
-          find "$APK_DIR" -name "*.apk" -type f > /tmp/apk_list.txt
-          echo "APK文件列表已保存"
-          
-          # 输出第一个APK作为主APK（用于兼容性）
-          MAIN_APK=$(find "$APK_DIR" -name "*universal*.apk" -type f | head -1)
-          if [ -z "$MAIN_APK" ]; then
-            MAIN_APK=$(find "$APK_DIR" -name "*.apk" -type f | head -1)
-          fi
-          echo "apk_file=$MAIN_APK" >> $GITHUB_OUTPUT # Changed from main_apk to apk_file to match the release step
-          echo "apk_count=$APK_COUNT" >> $GITHUB_OUTPUT
         else
-          echo "错误: APK目录不存在: $APK_DIR"
+          echo "❌ 错误: APK目录不存在: $APK_DIR"
           exit 1
         fi
         
