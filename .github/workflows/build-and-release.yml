@@ -30,7 +30,7 @@ jobs:
       uses: actions/checkout@v4
       
     - name: 设置 Go 环境
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: '1.21'
         
@@ -49,13 +49,13 @@ jobs:
         echo "✓ gomobile 安装成功" | tee -a $ERROR_LOG
         
     - name: 设置 Java 环境
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
         
     - name: 设置 Android SDK
-      uses: android-actions/setup-android@v2
+      uses: android-actions/setup-android@v3
       with:
         api-level: 34
         build-tools: 34.0.0
@@ -79,7 +79,7 @@ jobs:
         fi
       
     - name: 缓存 Gradle
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.gradle/caches
@@ -325,7 +325,7 @@ jobs:
         
     - name: 创建 Release
       if: steps.build.outputs.build_success == 'true' && steps.find_apk.outputs.apk_file != ''
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ github.run_number }}-${{ steps.changelog.outputs.sha }}
         name: 版本 v${{ github.run_number }} - ${{ steps.changelog.outputs.date }}
@@ -379,7 +379,7 @@ jobs:
         
     - name: 上传错误日志
       if: failure()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: build-error-log
         path: ${{ env.ERROR_LOG }}
