@@ -72,14 +72,37 @@ jobs:
         echo "开始安装 Android SDK 组件..." | tee -a $ERROR_LOG
       # 使用 action 安装 SDK
       
+    - name: 检查可用的 Android 平台
+      run: |
+        echo "检查可用的 Android SDK 平台..." | tee -a $ERROR_LOG
+        # 先安装 cmdline-tools 以便列出可用平台
+        if [ ! -d "$ANDROID_SDK_ROOT/cmdline-tools" ]; then
+          echo "下载 cmdline-tools..." | tee -a $ERROR_LOG
+          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
+          cd /tmp
+          if command -v aria2c &> /dev/null; then
+            aria2c -x 16 -s 16 https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip || \
+            wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip || \
+            curl -L https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
+          else
+            wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip || \
+            curl -L https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
+          fi
+          unzip -q cmdline-tools.zip -d $ANDROID_SDK_ROOT/cmdline-tools
+          mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest
+        fi
+        
+        echo "列出可用的 Android 平台..." | tee -a $ERROR_LOG
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --list --sdk_root=$ANDROID_SDK_ROOT 2>&1 | grep "platforms;android" | head -20 | tee -a $ERROR_LOG || true
+        
     - name: 安装 Android SDK 组件
       uses: android-actions/setup-android@v3
       continue-on-error: false
       with:
         packages: |
-          platforms;android-33
+          platforms;android-31
           platforms;android-21
-          build-tools;34.0.0
+          build-tools;33.0.2
           ndk;25.1.8937393
         accept-android-sdk-licenses: true
       env:
