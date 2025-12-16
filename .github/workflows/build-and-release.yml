@@ -254,48 +254,50 @@ jobs:
           exit 1
         fi
         
-    - name: 编译 Go 库 (arm)
-      continue-on-error: true
-      run: |
-        echo "==========================================" | tee -a $ERROR_LOG
-        echo "编译 Go 库 (arm)" | tee -a $ERROR_LOG
-        echo "==========================================" | tee -a $ERROR_LOG
-        export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
-        export NDK_HOME=$ANDROID_NDK_HOME
-        export ANDROID_API=${ANDROID_API:-21}
-        echo "开始编译 arm 架构（API 级别: $ANDROID_API）..." | tee -a $ERROR_LOG
-        $HOME/go/bin/gomobile bind -target=android/arm -androidapi=$ANDROID_API -o app/libs/cfdata-arm.aar . 2>&1 | tee -a $ERROR_LOG || {
-          echo "警告: arm架构编译失败，跳过" | tee -a $ERROR_LOG
-        }
-        
-    - name: 编译 Go 库 (x86)
-      continue-on-error: true
-      run: |
-        echo "==========================================" | tee -a $ERROR_LOG
-        echo "编译 Go 库 (x86)" | tee -a $ERROR_LOG
-        echo "==========================================" | tee -a $ERROR_LOG
-        export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
-        export NDK_HOME=$ANDROID_NDK_HOME
-        export ANDROID_API=${ANDROID_API:-21}
-        echo "开始编译 x86 架构（API 级别: $ANDROID_API）..." | tee -a $ERROR_LOG
-        $HOME/go/bin/gomobile bind -target=android/386 -androidapi=$ANDROID_API -o app/libs/cfdata-386.aar . 2>&1 | tee -a $ERROR_LOG || {
-          echo "警告: x86架构编译失败，跳过" | tee -a $ERROR_LOG
-        }
-        
-    - name: 编译 Go 库 (x86_64)
-      continue-on-error: true
-      run: |
-        echo "==========================================" | tee -a $ERROR_LOG
-        echo "编译 Go 库 (x86_64)" | tee -a $ERROR_LOG
-        echo "==========================================" | tee -a $ERROR_LOG
-        export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
-        export NDK_HOME=$ANDROID_NDK_HOME
-        export ANDROID_API=${ANDROID_API:-21}
-        echo "开始编译 x86_64 架构（API 级别: $ANDROID_API）..." | tee -a $ERROR_LOG
-        $HOME/go/bin/gomobile bind -target=android/amd64 -androidapi=$ANDROID_API -o app/libs/cfdata-amd64.aar . 2>&1 | tee -a $ERROR_LOG || {
-          echo "警告: x86_64架构编译失败，跳过" | tee -a $ERROR_LOG
-        }
-        
+    # 注释掉其他架构以避免重复类冲突
+    # arm64是现代Android设备的主流架构
+    # - name: 编译 Go 库 (arm)
+    #   continue-on-error: true
+    #   run: |
+    #     echo "==========================================" | tee -a $ERROR_LOG
+    #     echo "编译 Go 库 (arm)" | tee -a $ERROR_LOG
+    #     echo "==========================================" | tee -a $ERROR_LOG
+    #     export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
+    #     export NDK_HOME=$ANDROID_NDK_HOME
+    #     export ANDROID_API=${ANDROID_API:-21}
+    #     echo "开始编译 arm 架构（API 级别: $ANDROID_API）..." | tee -a $ERROR_LOG
+    #     $HOME/go/bin/gomobile bind -target=android/arm -androidapi=$ANDROID_API -o app/libs/cfdata-arm.aar . 2>&1 | tee -a $ERROR_LOG || {
+    #       echo "警告: arm架构编译失败，跳过" | tee -a $ERROR_LOG
+    #     }
+    #     
+    # - name: 编译 Go 库 (x86)
+    #   continue-on-error: true
+    #   run: |
+    #     echo "==========================================" | tee -a $ERROR_LOG
+    #     echo "编译 Go 库 (x86)" | tee -a $ERROR_LOG
+    #     echo "==========================================" | tee -a $ERROR_LOG
+    #     export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
+    #     export NDK_HOME=$ANDROID_NDK_HOME
+    #     export ANDROID_API=${ANDROID_API:-21}
+    #     echo "开始编译 x86 架构（API 级别: $ANDROID_API）..." | tee -a $ERROR_LOG
+    #     $HOME/go/bin/gomobile bind -target=android/386 -androidapi=$ANDROID_API -o app/libs/cfdata-386.aar . 2>&1 | tee -a $ERROR_LOG || {
+    #       echo "警告: x86架构编译失败，跳过" | tee -a $ERROR_LOG
+    #     }
+    #     
+    # - name: 编译 Go 库 (x86_64)
+    #   continue-on-error: true
+    #   run: |
+    #     echo "==========================================" | tee -a $ERROR_LOG
+    #     echo "编译 Go 库 (x86_64)" | tee -a $ERROR_LOG
+    #     echo "==========================================" | tee -a $ERROR_LOG
+    #     export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
+    #     export NDK_HOME=$ANDROID_NDK_HOME
+    #     export ANDROID_API=${ANDROID_API:-21}
+    #     echo "开始编译 x86_64 架构（API 级别: $ANDROID_API）..." | tee -a $ERROR_LOG
+    #     $HOME/go/bin/gomobile bind -target=android/amd64 -androidapi=$ANDROID_API -o app/libs/cfdata-amd64.aar . 2>&1 | tee -a $ERROR_LOG || {
+    #       echo "警告: x86_64架构编译失败，跳过" | tee -a $ERROR_LOG
+    #     }
+    #     
     - name: 提取 Native 库
       run: |
         mkdir -p app/src/main/jniLibs
