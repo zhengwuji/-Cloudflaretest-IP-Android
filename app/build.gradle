@@ -25,6 +25,15 @@ android {
         }
     }
 
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+            universalApk true
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
@@ -62,7 +71,7 @@ dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'com.google.android.material:material:1.11.0'
     
-    // Go mobile library - 只包含arm64架构
-    implementation(name: 'cfdata-arm64', ext: 'aar')
+    // Go mobile library - 多架构支持
+    implementation fileTree(dir: 'libs', include: ['*.aar'])
 }
 
