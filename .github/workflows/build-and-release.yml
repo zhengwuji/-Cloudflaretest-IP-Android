@@ -248,27 +248,11 @@ jobs:
         
     - name: 提取 Native 库
       run: |
+        echo "=========================================="
+        echo "提取所有架构的 Native 库到 jniLibs"
+        echo "=========================================="
         mkdir -p app/src/main/jniLibs
         
-        # 提取 arm64
-        if [ -f "app/libs/cfdata-arm64.aar" ]; then
-          unzip -q -o app/libs/cfdata-arm64.aar -d app/libs/temp-arm64/ || true
-          if [ -d "app/libs/temp-arm64/jni/arm64-v8a" ]; then
-            cp -r app/libs/temp-arm64/jni/arm64-v8a app/src/main/jniLibs/ || true
-          fi
-          rm -rf app/libs/temp-arm64
-          # 将其中一个作为默认的cfdata.aar，Gradle会使用它
-          cp app/libs/cfdata-arm64.aar app/libs/cfdata.aar
-        fi
-        
-        # 提取 arm
-        if [ -f "app/libs/cfdata-arm.aar" ]; then
-          unzip -q -o app/libs/cfdata-arm.aar -d app/libs/temp-arm/ || true
-          if [ -d "app/libs/temp-arm/jni/armeabi-v7a" ]; then
-            cp -r app/libs/temp-arm/jni/armeabi-v7a app/src/main/jniLibs/ || true
-          fi
-          rm -rf app/libs/temp-arm
-        fi
         
         # 提取 x86
         if [ -f "app/libs/cfdata-x86.aar" ]; then
@@ -482,4 +466,3 @@ jobs:
         fi
         echo ""
         exit 1
-
