@@ -378,19 +378,24 @@ jobs:
         
         echo "" | tee -a $ERROR_LOG
         
-        # 检查APK文件是否存在
+        # 检查APK文件是否存在（支持签名和未签名版本）
         APK_PATH="app/build/outputs/apk/release/app-release.apk"
+        UNSIGNED_APK="app/build/outputs/apk/release/app-release-unsigned.apk"
+        
         if [ -f "$APK_PATH" ]; then
-          echo "✓ APK构建成功: $APK_PATH" | tee -a $ERROR_LOG
+          echo "✓ 找到签名APK: $APK_PATH" | tee -a $ERROR_LOG
           ls -lh "$APK_PATH" | tee -a $ERROR_LOG
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
           echo "build_success=true" >> $GITHUB_OUTPUT
+        elif [ -f "$UNSIGNED_APK" ]; then
+          echo "✓ 找到未签名APK: $UNSIGNED_APK" | tee -a $ERROR_LOG
+          ls -lh "$UNSIGNED_APK" | tee -a $ERROR_LOG
+          echo "apk_path=$UNSIGNED_APK" >> $GITHUB_OUTPUT
+          echo "build_success=true" >> $GITHUB_OUTPUT
         else
-          echo "❌ 错误: APK文件不存在: $APK_PATH" | tee -a $ERROR_LOG
-          echo "" | tee -a $ERROR_LOG
+          echo "❌ 错误: 未找到APK文件" | tee -a $ERROR_LOG
           echo "查找所有APK文件:" | tee -a $ERROR_LOG
           find app/build/outputs -name "*.apk" -type f 2>&1 | tee -a $ERROR_LOG || true
-          echo "" | tee -a $ERROR_LOG
           echo "build_success=false" >> $GITHUB_OUTPUT
           exit 1
         fi
