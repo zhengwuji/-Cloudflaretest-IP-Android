@@ -165,49 +165,10 @@ jobs:
           find $ANDROID_SDK_ROOT/ndk -maxdepth 1 -type d 2>/dev/null | head -5 || true
         fi
       
-    - name: 缓存 Gradle
-      uses: actions/cache@v4
+    - name: 设置 Gradle
+      uses: gradle/actions/setup-gradle@v4
       with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
-          
-    - name: 设置 Gradle Wrapper
-      run: |
-        echo "设置 Gradle Wrapper..." | tee -a $ERROR_LOG
-        mkdir -p gradle/wrapper
-        
-        # 创建 gradlew 脚本
-        cat > gradlew << 'EOF'
-        #!/bin/sh
-        GRADLE_APP_NAME="Gradle"
-        BASE_DIR=$(cd "$(dirname "$0")" && pwd)
-        GRADLE_WRAPPER_JAR="$BASE_DIR/gradle/wrapper/gradle-wrapper.jar"
-        exec java -jar "$GRADLE_WRAPPER_JAR" "$@"
-        EOF
-        chmod +x gradlew
-        
-        # 下载 gradle-wrapper.jar（使用国内镜像加速）
-        if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-          echo "下载 gradle-wrapper.jar..." | tee -a $ERROR_LOG
-          # 尝试从腾讯云镜像下载
-          wget -q https://mirrors.cloud.tencent.com/gradle/gradle-8.5-bin.zip -O /tmp/gradle.zip || \
-          wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip -O /tmp/gradle.zip || \
-          curl -L https://services.gradle.org/distributions/gradle-8.5-bin.zip -o /tmp/gradle.zip
-          
-          unzip -q /tmp/gradle.zip -d /tmp/
-          cp /tmp/gradle-8.5/lib/gradle-wrapper-*.jar gradle/wrapper/gradle-wrapper.jar || {
-            # 备用方法：直接下载jar文件
-            wget -q https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar -O gradle/wrapper/gradle-wrapper.jar || \
-            curl -L https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar -o gradle/wrapper/gradle-wrapper.jar
-          }
-          echo "✓ Gradle Wrapper 设置完成" | tee -a $ERROR_LOG
-        else
-          echo "✓ Gradle Wrapper 已存在" | tee -a $ERROR_LOG
-        fi
+        gradle-version: '8.5'
 
       
     - name: 编译 Go 库 (arm64)
@@ -393,12 +354,12 @@ jobs:
         
         echo "开始构建APK..." | tee -a $ERROR_LOG
         echo "" | tee -a $ERROR_LOG
-        echo "执行命令: ./gradlew clean assembleRelease --no-daemon --stacktrace" | tee -a $ERROR_LOG
+        echo "执行命令: gradle clean assembleRelease --no-daemon --stacktrace" | tee -a $ERROR_LOG
         echo "" | tee -a $ERROR_LOG
         
         # 捕获完整的Gradle输出
         set +e  # 临时禁用错误退出
-        ./gradlew clean assembleRelease --no-daemon --stacktrace 2>&1 | tee -a $ERROR_LOG
+        gradle clean assembleRelease --no-daemon --stacktrace 2>&1 | tee -a $ERROR_LOG
         GRADLE_EXIT_CODE=$?
         set -e  # 重新启用错误退出
         
@@ -406,18 +367,11 @@ jobs:
           echo "" | tee -a $ERROR_LOG
           echo "❌ Gradle 构建失败 (退出码: $GRADLE_EXIT_CODE)" | tee -a $ERROR_LOG
           echo "" | tee -a $ERROR_LOG
-          echo "尝试使用 gradle 命令..." | tee -a $ERROR_LOG
-          
-          gradle clean assembleRelease --no-daemon --stacktrace 2>&1 | tee -a $ERROR_LOG || {
-            echo "" | tee -a $ERROR_LOG
-            echo "❌ 错误: APK构建失败" | tee -a $ERROR_LOG
-            echo "" | tee -a $ERROR_LOG
-            echo "Gradle 版本信息:" | tee -a $ERROR_LOG
-            ./gradlew --version 2>&1 | tee -a $ERROR_LOG || true
-            echo "" | tee -a $ERROR_LOG
-            echo "build_success=false" >> $GITHUB_OUTPUT
-            exit 1
-          }
+          echo "Gradle 版本信息:" | tee -a $ERROR_LOG
+          gradle --version 2>&1 | tee -a $ERROR_LOG || true
+          echo "" | tee -a $ERROR_LOG
+          echo "build_success=false" >> $GITHUB_OUTPUT
+          exit 1
         fi
         
         echo "" | tee -a $ERROR_LOG
