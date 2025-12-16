@@ -393,39 +393,39 @@ jobs:
         echo "commit=$COMMIT_MSG" >> $GITHUB_OUTPUT
         echo "sha=$SHORT_SHA" >> $GITHUB_OUTPUT
         
+        
     - name: 查找所有APK文件
       id: find_apk
       if: steps.build.outputs.build_success == 'true'
       run: |
         echo "查找所有APK文件..."
-        
-        # 查找所有release APK
         APK_DIR="app/build/outputs/apk/release"
         
-        if [ -d "$APK_DIR" ]; then
-          echo "找到的APK文件："
-          ls -lh "$APK_DIR"/*.apk 2>/dev/null || echo "未找到APK文件"
-          
-          # 统计APK数量
-          APK_COUNT=$(find "$APK_DIR" -name "*.apk" -type f 2>/dev/null | wc -l)
-          echo "APK文件数量: $APK_COUNT"
-          
-          if [ $APK_COUNT -gt 0 ]; then
-            echo "✓ 成功找到 $APK_COUNT 个APK文件"
-            echo "apk_count=$APK_COUNT" >> $GITHUB_OUTPUT
-            
-            # 列出所有APK文件（用于调试）
-            find "$APK_DIR" -name "*.apk" -type f 2>/dev/null | while read apk; do
-              echo "  - $(basename $apk)"
-            done
-          else
-            echo "❌ 错误: 未找到任何APK文件"
-            exit 1
-          fi
-        else
-          echo "❌ 错误: APK目录不存在: $APK_DIR"
+        # 检查目录是否存在
+        if [ ! -d "$APK_DIR" ]; then
+          echo "错误: APK目录不存在: $APK_DIR"
           exit 1
         fi
+        
+        # 查找APK文件
+        APK_FILES=$(find "$APK_DIR" -name "*.apk" -type f 2>/dev/null)
+        
+        if [ -z "$APK_FILES" ]; then
+          echo "错误: 未找到任何APK文件"
+          ls -la "$APK_DIR" || true
+          exit 1
+        fi
+        
+        # 统计数量
+        APK_COUNT=$(echo "$APK_FILES" | wc -l | tr -d ' ')
+        echo "成功找到 $APK_COUNT 个APK文件："
+        echo "$APK_FILES" | while read apk; do
+          echo "  $(basename "$apk") ($(du -h "$apk" | cut -f1))"
+        done
+        
+        # 设置输出
+        echo "apk_count=$APK_COUNT" >> $GITHUB_OUTPUT
+        echo "构建完成，准备创建Release..."
         
     - name: 创建 Release
       if: steps.build.outputs.build_success == 'true' && steps.find_apk.outputs.apk_count > 0
