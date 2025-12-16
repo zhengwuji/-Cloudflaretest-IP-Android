@@ -182,12 +182,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		case "start_test":
 			var params struct {
-				DC    string `json:"dc"`
-				Port  int    `json:"port"`
-				Delay int    `json:"delay"`
+				DC         string `json:"dc"`
+				Port       int    `json:"port"`
+				Delay      int    `json:"delay"`
+				MaxResults int    `json:"maxResults"`
 			}
 			json.Unmarshal(request.Data, &params)
-			go runDetailedTest(ws, params.DC, params.Port, params.Delay)
+			go runDetailedTest(ws, params.DC, params.Port, params.Delay, params.MaxResults)
 
 		case "start_speed_test":
 			var params struct {
@@ -456,7 +457,7 @@ func runUnifiedTask(ws *websocket.Conn, ipType int, scanMaxThreads int) {
 	sendWSMessage(ws, "scan_complete_wait_dc", dcList)
 }
 
-func runDetailedTest(ws *websocket.Conn, selectedDC string, port int, delay int) {
+func runDetailedTest(ws *websocket.Conn, selectedDC string, port int, delay int, maxResults int) {
 	var testIPList []string
 	scanMutex.Lock()
 	for _, res := range scanResults {
@@ -469,6 +470,11 @@ func runDetailedTest(ws *websocket.Conn, selectedDC string, port int, delay int)
 	if len(testIPList) == 0 {
 		sendWSMessage(ws, "error", "没有找到可测试的 IP 地址")
 		return
+	}
+
+	// 限制测试IP数量
+	if maxResults > 0 && len(testIPList) > maxResults {
+		testIPList = testIPList[:maxResults]
 	}
 
 	sendWSMessage(ws, "log", fmt.Sprintf("开始对 %s 的 %d 个 IP 进行详细测试...", selectedDC, len(testIPList)))

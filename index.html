@@ -375,6 +375,11 @@
                 <label>最低下载速度 (MB/s)</label>
                 <input type="number" id="minSpeed" value="0" step="0.1" min="0" placeholder="0表示不过滤">
             </div>
+
+            <div class="form-group">
+                <label>测速结果数量</label>
+                <input type="number" id="maxResults" value="50" min="1" placeholder="默认50">
+            </div>
             
             <button onclick="startUnifiedTask()" id="btnStart">开始扫描与测试</button>
             <button onclick="resetSpeedUrl()" id="btnResetSpeed" style="background-color:#6b7280;color:#fff;padding:10px;font-size:13px;border:none;border-radius:6px;cursor:pointer;">恢复默认测速 URL</button>
@@ -430,6 +435,8 @@
                                 <th>地区</th>
                                 <th>城市</th>
                                 <th>延迟</th>
+                                <th>下载速度</th>
+                                <th>测速</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -675,6 +682,7 @@
         function selectDC(dc) {
             const port = parseInt(document.getElementById('testPort').value);
             const delay = parseInt(document.getElementById('testDelay').value);
+            const maxResults = parseInt(document.getElementById('maxResults').value) || 50;
             
             document.querySelector('#testTable tbody').innerHTML = '';
             testResultsCount = 0;
@@ -697,7 +705,7 @@
             
             ws.send(JSON.stringify({
                 type: 'start_test',
-                data: { dc, port, delay }
+                data: { dc, port, delay, maxResults }
             }));
             
             log("开始测试数据中心: " + dc);
@@ -757,6 +765,43 @@
             }));
         }
 
+        function runSpeedTestFromScan(ip) {
+            const ipId = ip.replace(/:/g, '_').replace(/\./g, '_');
+            const btn = document.getElementById('btn-scan-speed-' + ipId);
+            const speedDisplay = document.getElementById('scan-speed-display-' + ipId);
+            
+            if(btn) {
+                btn.innerHTML = "⏳ 测速中...";
+                btn.disabled = true;
+                btn.style.backgroundColor = "#4b5563";
+                btn.style.color = "#ffffff";
+            }
+            
+            if(speedDisplay) {
+                speedDisplay.textContent = "测速中...";
+                speedDisplay.style.color = "#f59e0b";
+            }
+            
+            const port = parseInt(document.getElementById('testPort').value);
+            const speedUrlInput = document.getElementById('speedUrl');
+            const speedUrl = speedUrlInput ? speedUrlInput.value.trim() : "";
+            const minSpeed = parseFloat(document.getElementById('minSpeed').value) || 0;
+
+            if (speedUrl) {
+                try {
+                    localStorage.setItem('cfdata_speed_url', speedUrl);
+                    if (window.Android && typeof Android.saveSpeedUrl === 'function') {
+                        Android.saveSpeedUrl(speedUrl);
+                    }
+                } catch (e) {}
+            }
+
+            ws.send(JSON.stringify({
+                type: 'start_speed_test',
+                data: { ip, port, speedUrl, minSpeed, fromScan: true }
+            }));
+        }
+
         // 复制 IP 功能
         function copyToClipboard(text, element) {
             navigator.clipboard.writeText(text).then(() => {
@@ -797,12 +842,17 @@
         }
 
         function renderScanRow(res) {
+            const ipId = res.IP.replace(/:/g, '_').replace(/\./g, '_');
             const row = `<tr>
                 <td><span class="copy-ip" onclick="copyToClipboard('${res.IP}', this)" title="点击复制IP">${res.IP}</span></td>
                 <td>${res.DataCenter}</td>
                 <td>${res.Region}</td>
                 <td>${res.City}</td>
                 <td><span style="color:${getLatencyColor(res.LatencyStr)}">${res.LatencyStr}</span></td>
+                <td id="scan-speed-display-${ipId}">-</td>
+                <td id="scan-speed-cell-${ipId}">
+                    <button class="action-btn" id="btn-scan-speed-${ipId}" onclick="runSpeedTestFromScan('${res.IP}')">测速</button>
+                </td>
             </tr>`;
             
             const tbody = document.querySelector('#scanTable tbody');
@@ -819,12 +869,17 @@
             tbody.innerHTML = ''; 
 
             scanData.forEach(res => {
+                const ipId = res.IP.replace(/:/g, '_').replace(/\./g, '_');
                 const row = `<tr>
                     <td><span class="copy-ip" onclick="copyToClipboard('${res.IP}', this)" title="点击复制IP">${res.IP}</span></td>
                     <td>${res.DataCenter}</td>
                     <td>${res.Region}</td>
                     <td>${res.City}</td>
                     <td><span style="color:${getLatencyColor(res.LatencyStr)}">${res.LatencyStr}</span></td>
+                    <td id="scan-speed-display-${ipId}">-</td>
+                    <td id="scan-speed-cell-${ipId}">
+                        <button class="action-btn" id="btn-scan-speed-${ipId}" onclick="runSpeedTestFromScan('${res.IP}')">测速</button>
+                    </td>
                 </tr>`;
                 tbody.insertAdjacentHTML('beforeend', row);
             });
@@ -882,6 +937,10 @@
             const speedCell = document.getElementById('speed-cell-' + ipId);
             const speedDisplay = document.getElementById('speed-display-' + ipId);
             
+            // 扫描页面的元素
+            const scanSpeedCell = document.getElementById('scan-speed-cell-' + ipId);
+            const scanSpeedDisplay = document.getElementById('scan-speed-display-' + ipId);
+            
             if (data.speed.includes('MB/s')) {
                 const val = parseFloat(data.speed);
                 let color = '#1f2937';
@@ -889,15 +948,27 @@
                 else if(val > 5) color = '#f59e0b';
                 else color = '#ef4444';
                 
-                // 更新显示列
+                // 更新详细测试页面的显示列
                 if (speedDisplay) {
                     speedDisplay.textContent = data.speed;
                     speedDisplay.style.color = color;
                 }
                 
-                // 更新按钮列，显示测速按钮
+                // 更新详细测试页面的按钮列
                 if (speedCell) {
                     speedCell.innerHTML = `<button class="action-btn" id="btn-speed-${ipId}" onclick="runSpeedTest('${data.ip}')">重新测速</button>`;
+                }
+                
+                // 更新扫描页面的显示列
+                if (scanSpeedDisplay) {
+                    scanSpeedDisplay.textContent = data.speed;
+                    scanSpeedDisplay.style.color = color;
+                    scanSpeedDisplay.style.fontWeight = '500';
+                }
+                
+                // 更新扫描页面的按钮列
+                if (scanSpeedCell) {
+                    scanSpeedCell.innerHTML = `<button class="action-btn" id="btn-scan-speed-${ipId}" onclick="runSpeedTestFromScan('${data.ip}')">重新测速</button>`;
                 }
                 
                 // 更新数据
@@ -919,12 +990,20 @@
                     allItem.Speed = data.speed;
                 }
             } else {
+                // 失败情况
                 if (speedDisplay) {
                     speedDisplay.textContent = data.speed;
                     speedDisplay.style.color = '#ef4444';
                 }
                 if (speedCell) {
                     speedCell.innerHTML = `<button class="action-btn" id="btn-speed-${ipId}" onclick="runSpeedTest('${data.ip}')">重新测速</button>`;
+                }
+                if (scanSpeedDisplay) {
+                    scanSpeedDisplay.textContent = data.speed;
+                    scanSpeedDisplay.style.color = '#ef4444';
+                }
+                if (scanSpeedCell) {
+                    scanSpeedCell.innerHTML = `<button class="action-btn" id="btn-scan-speed-${ipId}" onclick="runSpeedTestFromScan('${data.ip}')">重新测速</button>`;
                 }
             }
         }
