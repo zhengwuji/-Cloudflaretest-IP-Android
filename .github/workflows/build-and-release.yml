@@ -69,6 +69,7 @@ jobs:
         packages: |
           platform-tools
           platforms;android-34
+          platforms;android-21
           build-tools;34.0.0
           ndk;25.1.8937393
         accept-android-sdk-licenses: true
@@ -169,7 +170,16 @@ jobs:
         # 检查 NDK
         if [ ! -d "$ANDROID_NDK_HOME" ]; then
           echo "警告: NDK 路径不存在，查找可用的 NDK..." | tee -a $ERROR_LOG
-          AVAILABLE_NDK=$(find $ANDROID_SDK_ROOT/ndk -maxdepth 1 -type d 2>/dev/null | grep -E "ndk/[0-9]" | head -1)
+          # 优先查找指定版本的 NDK
+          AVAILABLE_NDK=$(find $ANDROID_SDK_ROOT/ndk -maxdepth 1 -type d 2>/dev/null | grep -E "ndk/25\.1\.8937393" | head -1)
+          if [ -z "$AVAILABLE_NDK" ]; then
+            # 如果找不到指定版本，查找其他兼容版本（25.x）
+            AVAILABLE_NDK=$(find $ANDROID_SDK_ROOT/ndk -maxdepth 1 -type d 2>/dev/null | grep -E "ndk/25\." | head -1)
+          fi
+          if [ -z "$AVAILABLE_NDK" ]; then
+            # 最后尝试查找任何 NDK
+            AVAILABLE_NDK=$(find $ANDROID_SDK_ROOT/ndk -maxdepth 1 -type d 2>/dev/null | grep -E "ndk/[0-9]" | head -1)
+          fi
           if [ -n "$AVAILABLE_NDK" ]; then
             echo "找到可用 NDK: $AVAILABLE_NDK" | tee -a $ERROR_LOG
             export ANDROID_NDK_HOME=$AVAILABLE_NDK
@@ -184,8 +194,19 @@ jobs:
         
         echo "使用 NDK: $ANDROID_NDK_HOME" | tee -a $ERROR_LOG
         
-        # 编译
-        $HOME/go/bin/gomobile bind -target=android/arm64 -o app/libs/cfdata-arm64.aar ./cfdata 2>&1 | tee -a $ERROR_LOG || {
+        # 设置 Android API 级别（gomobile 需要）
+        export ANDROID_API=21
+        echo "ANDROID_API=$ANDROID_API" >> $GITHUB_ENV
+        
+        # 验证 NDK 版本
+        if [ -f "$ANDROID_NDK_HOME/source.properties" ]; then
+          echo "NDK 版本信息:" | tee -a $ERROR_LOG
+          grep "Pkg.Revision" "$ANDROID_NDK_HOME/source.properties" | tee -a $ERROR_LOG || true
+        fi
+        
+        # 编译（指定 API 级别）
+        echo "开始编译 arm64 架构（API 级别: $ANDROID_API）..." | tee -a $ERROR_LOG
+        $HOME/go/bin/gomobile bind -target=android/arm64 -androidapi=$ANDROID_API -o app/libs/cfdata-arm64.aar ./cfdata 2>&1 | tee -a $ERROR_LOG || {
           echo "错误: arm64 架构编译失败" | tee -a $ERROR_LOG
           exit 1
         }
@@ -205,7 +226,9 @@ jobs:
         echo "==========================================" | tee -a $ERROR_LOG
         export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
         export NDK_HOME=$ANDROID_NDK_HOME
-        $HOME/go/bin/gomobile bind -target=android/arm -o app/libs/cfdata-arm.aar ./cfdata 2>&1 | tee -a $ERROR_LOG || {
+        export ANDROID_API=${ANDROID_API:-21}
+        echo "开始编译 arm 架构（API 级别: $ANDROID_API）..." | tee -a $ERROR_LOG
+        $HOME/go/bin/gomobile bind -target=android/arm -androidapi=$ANDROID_API -o app/libs/cfdata-arm.aar ./cfdata 2>&1 | tee -a $ERROR_LOG || {
           echo "警告: arm架构编译失败，跳过" | tee -a $ERROR_LOG
         }
         
@@ -217,7 +240,9 @@ jobs:
         echo "==========================================" | tee -a $ERROR_LOG
         export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
         export NDK_HOME=$ANDROID_NDK_HOME
-        $HOME/go/bin/gomobile bind -target=android/386 -o app/libs/cfdata-386.aar ./cfdata 2>&1 | tee -a $ERROR_LOG || {
+        export ANDROID_API=${ANDROID_API:-21}
+        echo "开始编译 x86 架构（API 级别: $ANDROID_API）..." | tee -a $ERROR_LOG
+        $HOME/go/bin/gomobile bind -target=android/386 -androidapi=$ANDROID_API -o app/libs/cfdata-386.aar ./cfdata 2>&1 | tee -a $ERROR_LOG || {
           echo "警告: x86架构编译失败，跳过" | tee -a $ERROR_LOG
         }
         
@@ -227,9 +252,11 @@ jobs:
         echo "==========================================" | tee -a $ERROR_LOG
         echo "编译 Go 库 (x86_64)" | tee -a $ERROR_LOG
         echo "==========================================" | tee -a $ERROR_LOG
-        export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
+        export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
         export NDK_HOME=$ANDROID_NDK_HOME
-        $HOME/go/bin/gomobile bind -target=android/amd64 -o app/libs/cfdata-amd64.aar ./cfdata 2>&1 | tee -a $ERROR_LOG || {
+        export ANDROID_API=${ANDROID_API:-21}
+        echo "开始编译 x86_64 架构（API 级别: $ANDROID_API）..." | tee -a $ERROR_LOG
+        $HOME/go/bin/gomobile bind -target=android/amd64 -androidapi=$ANDROID_API -o app/libs/cfdata-amd64.aar ./cfdata 2>&1 | tee -a $ERROR_LOG || {
           echo "警告: x86_64架构编译失败，跳过" | tee -a $ERROR_LOG
         }
         
