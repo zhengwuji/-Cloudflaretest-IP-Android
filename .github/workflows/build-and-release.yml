@@ -47,8 +47,28 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
           
-    - name: 授予 gradlew 执行权限
-      run: chmod +x gradlew || true
+    - name: 创建 Gradle Wrapper 脚本
+      run: |
+        cat > gradlew << 'EOF'
+        #!/bin/sh
+        GRADLE_WRAPPER_JAR="gradle/wrapper/gradle-wrapper.jar"
+        if [ ! -f "$GRADLE_WRAPPER_JAR" ]; then
+          echo "Downloading Gradle wrapper..."
+          mkdir -p gradle/wrapper
+          wget -q https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -O "$GRADLE_WRAPPER_JAR" || \
+          curl -L https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -o "$GRADLE_WRAPPER_JAR"
+        fi
+        exec java -jar "$GRADLE_WRAPPER_JAR" "$@"
+        EOF
+        chmod +x gradlew
+        
+    - name: 下载 Gradle Wrapper JAR
+      run: |
+        mkdir -p gradle/wrapper
+        if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+          wget -q https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -O gradle/wrapper/gradle-wrapper.jar || \
+          curl -L https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -o gradle/wrapper/gradle-wrapper.jar
+        fi
       
     - name: 编译 Go 库 (arm64)
       run: |
@@ -111,7 +131,11 @@ jobs:
     - name: 构建 APK
       run: |
         chmod +x gradlew || true
-        ./gradlew clean assembleRelease --no-daemon
+        export ANDROID_HOME=$ANDROID_SDK_ROOT
+        ./gradlew clean assembleRelease --no-daemon --stacktrace || {
+          echo "Gradle wrapper failed, trying direct gradle..."
+          gradle clean assembleRelease --no-daemon --stacktrace
+        }
         
     - name: 生成更新日志
       id: changelog
