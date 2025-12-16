@@ -342,6 +342,39 @@ jobs:
           rm -rf app/libs/temp-amd64
         fi
         
+    - name: 生成签名密钥库
+      run: |
+        echo "===========================================" | tee -a $ERROR_LOG
+        echo "生成签名密钥库" | tee -a $ERROR_LOG
+        echo "===========================================" | tee -a $ERROR_LOG
+        
+        # 创建密钥库目录
+        mkdir -p app
+        
+        # 生成密钥库（使用keytool）
+        keytool -genkeypair \
+          -alias cfdata \
+          -keyalg RSA \
+          -keysize 2048 \
+          -validity 10000 \
+          -dname "CN=CFData, OU=CFData, O=CFData, L=Beijing, ST=Beijing, C=CN" \
+          -keystore app/release.keystore \
+          -storepass cfdata123456 \
+          -keypass cfdata123456 \
+          -storetype pkcs12 || {
+            echo "错误: 密钥库生成失败" | tee -a $ERROR_LOG
+            exit 1
+          }
+        
+        echo "✓ 密钥库生成成功" | tee -a $ERROR_LOG
+        ls -lh app/release.keystore | tee -a $ERROR_LOG
+        
+        # 设置环境变量供Gradle使用
+        echo "KEYSTORE_FILE=$PWD/app/release.keystore" >> $GITHUB_ENV
+        echo "KEYSTORE_PASSWORD=cfdata123456" >> $GITHUB_ENV
+        echo "KEY_ALIAS=cfdata" >> $GITHUB_ENV
+        echo "KEY_PASSWORD=cfdata123456" >> $GITHUB_ENV
+        
     - name: 构建 APK
       id: build
       run: |
