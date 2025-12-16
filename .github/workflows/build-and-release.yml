@@ -73,7 +73,6 @@ jobs:
         packages: |
           platform-tools
           platforms;android-34
-          platforms;android-21
           build-tools;34.0.0
           ndk;25.1.8937393
         accept-android-sdk-licenses: true
@@ -85,53 +84,69 @@ jobs:
         echo "==========================================" | tee -a $ERROR_LOG
         echo "验证 Android SDK 安装" | tee -a $ERROR_LOG
         echo "==========================================" | tee -a $ERROR_LOG
-        
-        if [ "${{ steps.setup_android.outcome }}" != "success" ]; then
-          echo "❌ 错误: Android SDK 组件安装失败" | tee -a $ERROR_LOG
-          echo "" | tee -a $ERROR_LOG
-          echo "尝试手动安装缺失的组件..." | tee -a $ERROR_LOG
-          
-          # 列出已安装的组件
-          echo "已安装的 SDK 组件:" | tee -a $ERROR_LOG
-          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --list_installed 2>&1 | tee -a $ERROR_LOG || true
-          echo "" | tee -a $ERROR_LOG
-          
-          # 列出可用的组件
-          echo "可用的 SDK 组件（前50个）:" | tee -a $ERROR_LOG
-          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --list 2>&1 | head -50 | tee -a $ERROR_LOG || true
-          echo "" | tee -a $ERROR_LOG
-          
-          exit 1
-        fi
-        
-        echo "✓ Android SDK 组件安装成功" | tee -a $ERROR_LOG
-        
-        # 验证关键组件
         echo "" | tee -a $ERROR_LOG
+        
+        # 列出已安装的组件（用于调试）
+        echo "已安装的 SDK 组件:" | tee -a $ERROR_LOG
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --list_installed 2>&1 | tee -a $ERROR_LOG || true
+        echo "" | tee -a $ERROR_LOG
+        
+        # 验证关键组件是否真的存在（不依赖action的返回状态）
         echo "验证关键组件:" | tee -a $ERROR_LOG
+        MISSING_COMPONENTS=0
         
         if [ -d "$ANDROID_SDK_ROOT/platform-tools" ]; then
           echo "  ✓ platform-tools: 已安装" | tee -a $ERROR_LOG
-          ls -la "$ANDROID_SDK_ROOT/platform-tools" | head -5 | tee -a $ERROR_LOG
         else
           echo "  ❌ platform-tools: 未找到" | tee -a $ERROR_LOG
+          MISSING_COMPONENTS=$((MISSING_COMPONENTS + 1))
         fi
         
         if [ -d "$ANDROID_SDK_ROOT/platforms/android-34" ]; then
           echo "  ✓ platforms;android-34: 已安装" | tee -a $ERROR_LOG
         else
           echo "  ❌ platforms;android-34: 未找到" | tee -a $ERROR_LOG
+          MISSING_COMPONENTS=$((MISSING_COMPONENTS + 1))
         fi
         
         if [ -d "$ANDROID_SDK_ROOT/build-tools/34.0.0" ]; then
           echo "  ✓ build-tools;34.0.0: 已安装" | tee -a $ERROR_LOG
         else
           echo "  ❌ build-tools;34.0.0: 未找到" | tee -a $ERROR_LOG
+          MISSING_COMPONENTS=$((MISSING_COMPONENTS + 1))
+        fi
+        
+        # 检查NDK（多个版本中任意一个即可）
+        NDK_FOUND=0
+        if [ -d "$ANDROID_SDK_ROOT/ndk/25.1.8937393" ]; then
+          echo "  ✓ ndk;25.1.8937393: 已安装" | tee -a $ERROR_LOG
+          NDK_FOUND=1
+        else
+          # 查找任何可用的NDK版本
+          NDK_DIR=$(find $ANDROID_SDK_ROOT/ndk -maxdepth 1 -type d 2>/dev/null | grep -E "ndk/[0-9]" | head -1)
+          if [ -n "$NDK_DIR" ]; then
+            NDK_VERSION=$(basename "$NDK_DIR")
+            echo "  ✓ ndk;$NDK_VERSION: 已安装（使用备选版本）" | tee -a $ERROR_LOG
+            NDK_FOUND=1
+          else
+            echo "  ❌ NDK: 未找到任何版本" | tee -a $ERROR_LOG
+            MISSING_COMPONENTS=$((MISSING_COMPONENTS + 1))
+          fi
         fi
         
         echo "" | tee -a $ERROR_LOG
         
-
+        # 只有在关键组件真的缺失时才报错
+        if [ $MISSING_COMPONENTS -gt 0 ]; then
+          echo "❌ 错误: 缺少 $MISSING_COMPONENTS 个关键SDK组件" | tee -a $ERROR_LOG
+          echo "" | tee -a $ERROR_LOG
+          echo "Action 返回状态: ${{ steps.setup_android.outcome }}" | tee -a $ERROR_LOG
+          echo "" | tee -a $ERROR_LOG
+          exit 1
+        fi
+        
+        echo "✓ 所有关键SDK组件都已安装" | tee -a $ERROR_LOG
+        echo "" | tee -a $ERROR_LOG
         
     - name: 配置 Android NDK 环境变量
       run: |
