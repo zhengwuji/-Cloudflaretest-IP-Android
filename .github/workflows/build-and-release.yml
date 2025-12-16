@@ -36,6 +36,10 @@ jobs:
         
     - name: 设置 Android SDK
       uses: android-actions/setup-android@v2
+      with:
+        api-level: 34
+        build-tools: 34.0.0
+        ndk-version: '25.1.8937393'
       
     - name: 缓存 Gradle
       uses: actions/cache@v3
@@ -47,28 +51,31 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
           
+    - name: 下载 Gradle Wrapper
+      run: |
+        mkdir -p gradle/wrapper
+        if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+          echo "下载 Gradle Wrapper JAR..."
+          wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip -O /tmp/gradle.zip || \
+          curl -L https://services.gradle.org/distributions/gradle-8.2-bin.zip -o /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp/
+          cp /tmp/gradle-8.2/lib/gradle-wrapper-*.jar gradle/wrapper/gradle-wrapper.jar || \
+          wget -q https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -O gradle/wrapper/gradle-wrapper.jar || \
+          curl -L https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -o gradle/wrapper/gradle-wrapper.jar
+        fi
+        
     - name: 创建 Gradle Wrapper 脚本
       run: |
         cat > gradlew << 'EOF'
         #!/bin/sh
         GRADLE_WRAPPER_JAR="gradle/wrapper/gradle-wrapper.jar"
         if [ ! -f "$GRADLE_WRAPPER_JAR" ]; then
-          echo "Downloading Gradle wrapper..."
-          mkdir -p gradle/wrapper
-          wget -q https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -O "$GRADLE_WRAPPER_JAR" || \
-          curl -L https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -o "$GRADLE_WRAPPER_JAR"
+          echo "错误: Gradle wrapper jar 未找到"
+          exit 1
         fi
         exec java -jar "$GRADLE_WRAPPER_JAR" "$@"
         EOF
         chmod +x gradlew
-        
-    - name: 下载 Gradle Wrapper JAR
-      run: |
-        mkdir -p gradle/wrapper
-        if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-          wget -q https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -O gradle/wrapper/gradle-wrapper.jar || \
-          curl -L https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -o gradle/wrapper/gradle-wrapper.jar
-        fi
       
     - name: 编译 Go 库 (arm64)
       run: |
