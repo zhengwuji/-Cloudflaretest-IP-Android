@@ -2,6 +2,7 @@ plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
 }
+// 版本: 多架构APK支持 - v1.0.1
 
 android {
     namespace 'com.cfdata'
