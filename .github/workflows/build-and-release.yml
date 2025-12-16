@@ -63,37 +63,7 @@ jobs:
         }
         aria2 --version || echo "aria2 未安装"
         
-    - name: 设置 Android SDK
-      continue-on-error: false
-      run: |
-        echo "==========================================" | tee -a $ERROR_LOG
-        echo "设置 Android SDK" | tee -a $ERROR_LOG
-        echo "==========================================" | tee -a $ERROR_LOG
-        echo "开始安装 Android SDK 组件..." | tee -a $ERROR_LOG
-      # 使用 action 安装 SDK
-      
-    - name: 检查可用的 Android 平台
-      run: |
-        echo "检查可用的 Android SDK 平台..." | tee -a $ERROR_LOG
-        # 先安装 cmdline-tools 以便列出可用平台
-        if [ ! -d "$ANDROID_SDK_ROOT/cmdline-tools" ]; then
-          echo "下载 cmdline-tools..." | tee -a $ERROR_LOG
-          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
-          cd /tmp
-          if command -v aria2c &> /dev/null; then
-            aria2c -x 16 -s 16 https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip || \
-            wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip || \
-            curl -L https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
-          else
-            wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip || \
-            curl -L https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
-          fi
-          unzip -q cmdline-tools.zip -d $ANDROID_SDK_ROOT/cmdline-tools
-          mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest
-        fi
-        
-        echo "列出可用的 Android 平台..." | tee -a $ERROR_LOG
-        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --list --sdk_root=$ANDROID_SDK_ROOT 2>&1 | grep "platforms;android" | head -20 | tee -a $ERROR_LOG || true
+
         
     - name: 安装 Android SDK 组件
       uses: android-actions/setup-android@v3
@@ -162,56 +132,40 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
           
-    - name: 下载 Gradle Wrapper
+    - name: 设置 Gradle Wrapper
       run: |
-        echo "下载 Gradle Wrapper..." | tee -a $ERROR_LOG
+        echo "设置 Gradle Wrapper..." | tee -a $ERROR_LOG
         mkdir -p gradle/wrapper
-        if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-          # 优先使用 aria2 下载
-          if command -v aria2c &> /dev/null; then
-            echo "使用 aria2 下载 Gradle Wrapper JAR..." | tee -a $ERROR_LOG
-            aria2c -x 16 -s 16 --dir=/tmp --out=gradle.zip \
-              https://services.gradle.org/distributions/gradle-8.2-bin.zip || {
-              echo "aria2 下载失败，尝试备用方法..." | tee -a $ERROR_LOG
-              wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip -O /tmp/gradle.zip || \
-              curl -L https://services.gradle.org/distributions/gradle-8.2-bin.zip -o /tmp/gradle.zip
-            }
-          else
-            echo "使用 wget/curl 下载..." | tee -a $ERROR_LOG
-            wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip -O /tmp/gradle.zip || \
-            curl -L https://services.gradle.org/distributions/gradle-8.2-bin.zip -o /tmp/gradle.zip
-          fi
-          
-          unzip -q /tmp/gradle.zip -d /tmp/ 2>&1 | tee -a $ERROR_LOG
-          cp /tmp/gradle-8.2/lib/gradle-wrapper-*.jar gradle/wrapper/gradle-wrapper.jar 2>&1 | tee -a $ERROR_LOG || {
-            echo "从 Gradle 仓库直接下载 wrapper jar..." | tee -a $ERROR_LOG
-            if command -v aria2c &> /dev/null; then
-              aria2c -x 16 -s 16 -d gradle/wrapper -o gradle-wrapper.jar \
-                https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar || \
-              wget -q https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -O gradle/wrapper/gradle-wrapper.jar || \
-              curl -L https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -o gradle/wrapper/gradle-wrapper.jar
-            else
-              wget -q https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -O gradle/wrapper/gradle-wrapper.jar || \
-              curl -L https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -o gradle/wrapper/gradle-wrapper.jar
-            fi
-          }
-          echo "✓ Gradle Wrapper 下载完成" | tee -a $ERROR_LOG
-        else
-          echo "✓ Gradle Wrapper 已存在" | tee -a $ERROR_LOG
-        fi
         
-    - name: 创建 Gradle Wrapper 脚本
-      run: |
+        # 创建 gradlew 脚本
         cat > gradlew << 'EOF'
         #!/bin/sh
-        GRADLE_WRAPPER_JAR="gradle/wrapper/gradle-wrapper.jar"
-        if [ ! -f "$GRADLE_WRAPPER_JAR" ]; then
-          echo "错误: Gradle wrapper jar 未找到"
-          exit 1
-        fi
+        GRADLE_APP_NAME="Gradle"
+        BASE_DIR=$(cd "$(dirname "$0")" && pwd)
+        GRADLE_WRAPPER_JAR="$BASE_DIR/gradle/wrapper/gradle-wrapper.jar"
         exec java -jar "$GRADLE_WRAPPER_JAR" "$@"
         EOF
         chmod +x gradlew
+        
+        # 下载 gradle-wrapper.jar（使用国内镜像加速）
+        if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+          echo "下载 gradle-wrapper.jar..." | tee -a $ERROR_LOG
+          # 尝试从腾讯云镜像下载
+          wget -q https://mirrors.cloud.tencent.com/gradle/gradle-8.5-bin.zip -O /tmp/gradle.zip || \
+          wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip -O /tmp/gradle.zip || \
+          curl -L https://services.gradle.org/distributions/gradle-8.5-bin.zip -o /tmp/gradle.zip
+          
+          unzip -q /tmp/gradle.zip -d /tmp/
+          cp /tmp/gradle-8.5/lib/gradle-wrapper-*.jar gradle/wrapper/gradle-wrapper.jar || {
+            # 备用方法：直接下载jar文件
+            wget -q https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar -O gradle/wrapper/gradle-wrapper.jar || \
+            curl -L https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar -o gradle/wrapper/gradle-wrapper.jar
+          }
+          echo "✓ Gradle Wrapper 设置完成" | tee -a $ERROR_LOG
+        else
+          echo "✓ Gradle Wrapper 已存在" | tee -a $ERROR_LOG
+        fi
+
       
     - name: 编译 Go 库 (arm64)
       run: |

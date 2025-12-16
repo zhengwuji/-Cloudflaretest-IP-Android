@@ -1,0 +1,108 @@
+version: 1
+
+strategy:
+  name: gemini_first_never_stop
+  description: Gemini 优先，自动兜底，Planning 自动执行，彻底不断流（含无模型兜底）
+
+models:
+  gemini_fast:
+    provider: google
+    model: gemini-3-pro
+    max_tokens: 4096
+
+  claude_balanced:
+    provider: anthropic
+    model: claude-sonnet-4.5
+    max_tokens: 8192
+
+  gpt_strict:
+    provider: openai
+    model: gpt-4.1
+    max_tokens: 8192
+
+analysis:
+  code_complexity:
+    low:
+      signals: [snippet, demo, 示例, 简单]
+    medium:
+      signals: [新增功能, 重构, 优化]
+    high:
+      signals: [bug, 修复, 异常, 并发]
+    extreme:
+      signals: [核心逻辑, 绝对正确]
+
+modes:
+  fast:
+    temperature: 0.7
+    models: [gemini_fast]
+  balanced:
+    temperature: 0.4
+    models: [claude_balanced]
+  strict:
+    temperature: 0.15
+    models: [gpt_strict]
+    self_review: true
+
+auto_select:
+  - when:
+      agent_mode: ask
+    use: fast
+  - when:
+      agent_mode: agent
+      code_complexity: low
+    use: fast
+  - when:
+      agent_mode: agent
+      code_complexity: medium
+    use: balanced
+  - when:
+      agent_mode: debug
+    use: strict
+
+retry_policy:
+  enabled: true
+  flow:
+    - try: fast
+      on_fail: balanced
+    - try: balanced
+      on_fail: strict
+    - try: strict
+      on_fail: abort
+
+planning_policy:
+  execution_mode: autonomous
+  ask_before_action: false
+  assume_missing_info: reasonable
+  stop_on_ambiguity: false
+  output:
+    language: zh-CN
+
+agent_policy:
+  default_language: zh-CN
+  force_response_language: true
+  system_prompt_suffix: |
+    你是 Antigravity 的自动执行代理。
+    所有分析、解释、结论、总结必须使用【简体中文】输出。
+    即使工具、系统日志、命令返回英文，也必须翻译并用中文说明。
+    不允许直接向用户输出英文解释。
+
+execution_policy:
+  translate_tool_output: true
+  translate_system_logs: true
+  translation_target_language: zh-CN
+
+execution_resilience:
+  never_abort_on_quota: true
+  never_abort_on_model_unavailable: true
+
+last_resort_fallback:
+  enabled: true
+  trigger_conditions:
+    - all_models_unavailable
+    - quota_exhausted
+  behavior:
+    never_abort: true
+    no_external_calls: true
+  output_mode:
+    type: actionable_plan
+    language: zh-CN
