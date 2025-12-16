@@ -14,7 +14,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     
+    # 错误收集文件
+    env:
+      ERROR_LOG: /tmp/build_errors.log
+    
     steps:
+    - name: 初始化错误日志
+      run: |
+        echo "==========================================" > $ERROR_LOG
+        echo "构建错误日志 - $(date)" >> $ERROR_LOG
+        echo "==========================================" >> $ERROR_LOG
+        echo "" >> $ERROR_LOG
+        
     - name: 检出代码
       uses: actions/checkout@v4
       
@@ -25,8 +36,17 @@ jobs:
         
     - name: 安装 gomobile
       run: |
-        go install golang.org/x/mobile/cmd/gomobile@latest
-        gomobile init
+        echo "安装 gomobile..." | tee -a $ERROR_LOG
+        go install golang.org/x/mobile/cmd/gomobile@latest || {
+          echo "错误: gomobile 安装失败" | tee -a $ERROR_LOG
+          exit 1
+        }
+        echo "初始化 gomobile..." | tee -a $ERROR_LOG
+        gomobile init || {
+          echo "错误: gomobile 初始化失败" | tee -a $ERROR_LOG
+          exit 1
+        }
+        echo "✓ gomobile 安装成功" | tee -a $ERROR_LOG
         
     - name: 设置 Java 环境
       uses: actions/setup-java@v3
@@ -40,6 +60,23 @@ jobs:
         api-level: 34
         build-tools: 34.0.0
         ndk-version: '25.1.8937393'
+        
+    - name: 配置 Android NDK 环境变量
+      run: |
+        echo "配置 Android NDK 环境变量..."
+        export ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.1.8937393
+        export NDK_HOME=$ANDROID_NDK_HOME
+        echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+        echo "NDK_HOME=$NDK_HOME" >> $GITHUB_ENV
+        
+        # 验证 NDK 路径
+        if [ -d "$ANDROID_NDK_HOME" ]; then
+          echo "✓ NDK 路径有效: $ANDROID_NDK_HOME"
+          ls -la "$ANDROID_NDK_HOME" | head -5
+        else
+          echo "警告: NDK 路径不存在，查找可用的 NDK..."
+          find $ANDROID_SDK_ROOT/ndk -maxdepth 1 -type d 2>/dev/null | head -5 || true
+        fi
       
     - name: 缓存 Gradle
       uses: actions/cache@v3
@@ -79,20 +116,85 @@ jobs:
       
     - name: 编译 Go 库 (arm64)
       run: |
+        echo "==========================================" | tee -a $ERROR_LOG
+        echo "编译 Go 库 (arm64)" | tee -a $ERROR_LOG
+        echo "==========================================" | tee -a $ERROR_LOG
+        
         mkdir -p app/libs
-        $HOME/go/bin/gomobile bind -target=android/arm64 -o app/libs/cfdata-arm64.aar ./cfdata
+        
+        # 设置环境变量
+        export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
+        export NDK_HOME=$ANDROID_NDK_HOME
+        
+        echo "ANDROID_NDK_HOME: $ANDROID_NDK_HOME" | tee -a $ERROR_LOG
+        echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT" | tee -a $ERROR_LOG
+        
+        # 检查 NDK
+        if [ ! -d "$ANDROID_NDK_HOME" ]; then
+          echo "警告: NDK 路径不存在，查找可用的 NDK..." | tee -a $ERROR_LOG
+          AVAILABLE_NDK=$(find $ANDROID_SDK_ROOT/ndk -maxdepth 1 -type d 2>/dev/null | grep -E "ndk/[0-9]" | head -1)
+          if [ -n "$AVAILABLE_NDK" ]; then
+            echo "找到可用 NDK: $AVAILABLE_NDK" | tee -a $ERROR_LOG
+            export ANDROID_NDK_HOME=$AVAILABLE_NDK
+            export NDK_HOME=$AVAILABLE_NDK
+            echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+            echo "NDK_HOME=$NDK_HOME" >> $GITHUB_ENV
+          else
+            echo "错误: 未找到可用的 NDK" | tee -a $ERROR_LOG
+            exit 1
+          fi
+        fi
+        
+        echo "使用 NDK: $ANDROID_NDK_HOME" | tee -a $ERROR_LOG
+        
+        # 编译
+        $HOME/go/bin/gomobile bind -target=android/arm64 -o app/libs/cfdata-arm64.aar ./cfdata 2>&1 | tee -a $ERROR_LOG || {
+          echo "错误: arm64 架构编译失败" | tee -a $ERROR_LOG
+          exit 1
+        }
+        
+        if [ -f "app/libs/cfdata-arm64.aar" ]; then
+          echo "✓ arm64 编译成功" | tee -a $ERROR_LOG
+        else
+          echo "错误: arm64 AAR 文件未生成" | tee -a $ERROR_LOG
+          exit 1
+        fi
         
     - name: 编译 Go 库 (arm)
+      continue-on-error: true
       run: |
-        $HOME/go/bin/gomobile bind -target=android/arm -o app/libs/cfdata-arm.aar ./cfdata || echo "arm架构编译失败，跳过"
+        echo "==========================================" | tee -a $ERROR_LOG
+        echo "编译 Go 库 (arm)" | tee -a $ERROR_LOG
+        echo "==========================================" | tee -a $ERROR_LOG
+        export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
+        export NDK_HOME=$ANDROID_NDK_HOME
+        $HOME/go/bin/gomobile bind -target=android/arm -o app/libs/cfdata-arm.aar ./cfdata 2>&1 | tee -a $ERROR_LOG || {
+          echo "警告: arm架构编译失败，跳过" | tee -a $ERROR_LOG
+        }
         
     - name: 编译 Go 库 (x86)
+      continue-on-error: true
       run: |
-        $HOME/go/bin/gomobile bind -target=android/386 -o app/libs/cfdata-386.aar ./cfdata || echo "x86架构编译失败，跳过"
+        echo "==========================================" | tee -a $ERROR_LOG
+        echo "编译 Go 库 (x86)" | tee -a $ERROR_LOG
+        echo "==========================================" | tee -a $ERROR_LOG
+        export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
+        export NDK_HOME=$ANDROID_NDK_HOME
+        $HOME/go/bin/gomobile bind -target=android/386 -o app/libs/cfdata-386.aar ./cfdata 2>&1 | tee -a $ERROR_LOG || {
+          echo "警告: x86架构编译失败，跳过" | tee -a $ERROR_LOG
+        }
         
     - name: 编译 Go 库 (x86_64)
+      continue-on-error: true
       run: |
-        $HOME/go/bin/gomobile bind -target=android/amd64 -o app/libs/cfdata-amd64.aar ./cfdata || echo "x86_64架构编译失败，跳过"
+        echo "==========================================" | tee -a $ERROR_LOG
+        echo "编译 Go 库 (x86_64)" | tee -a $ERROR_LOG
+        echo "==========================================" | tee -a $ERROR_LOG
+        export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
+        export NDK_HOME=$ANDROID_NDK_HOME
+        $HOME/go/bin/gomobile bind -target=android/amd64 -o app/libs/cfdata-amd64.aar ./cfdata 2>&1 | tee -a $ERROR_LOG || {
+          echo "警告: x86_64架构编译失败，跳过" | tee -a $ERROR_LOG
+        }
         
     - name: 提取 Native 库
       run: |
@@ -138,15 +240,24 @@ jobs:
     - name: 构建 APK
       id: build
       run: |
+        echo "==========================================" | tee -a $ERROR_LOG
+        echo "构建 APK" | tee -a $ERROR_LOG
+        echo "==========================================" | tee -a $ERROR_LOG
+        
         chmod +x gradlew || true
         export ANDROID_HOME=$ANDROID_SDK_ROOT
+        export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
         export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
         
-        echo "开始构建APK..."
-        ./gradlew clean assembleRelease --no-daemon --stacktrace || {
-          echo "Gradle wrapper failed, trying direct gradle..."
-          gradle clean assembleRelease --no-daemon --stacktrace || {
-            echo "构建失败"
+        echo "ANDROID_HOME: $ANDROID_HOME" | tee -a $ERROR_LOG
+        echo "ANDROID_NDK_HOME: $ANDROID_NDK_HOME" | tee -a $ERROR_LOG
+        
+        echo "开始构建APK..." | tee -a $ERROR_LOG
+        ./gradlew clean assembleRelease --no-daemon --stacktrace 2>&1 | tee -a $ERROR_LOG || {
+          echo "Gradle wrapper failed, trying direct gradle..." | tee -a $ERROR_LOG
+          gradle clean assembleRelease --no-daemon --stacktrace 2>&1 | tee -a $ERROR_LOG || {
+            echo "错误: APK构建失败" | tee -a $ERROR_LOG
+            echo "build_success=false" >> $GITHUB_OUTPUT
             exit 1
           }
         }
@@ -154,14 +265,14 @@ jobs:
         # 检查APK文件是否存在
         APK_PATH="app/build/outputs/apk/release/app-release.apk"
         if [ -f "$APK_PATH" ]; then
-          echo "APK构建成功: $APK_PATH"
-          ls -lh "$APK_PATH"
+          echo "✓ APK构建成功: $APK_PATH" | tee -a $ERROR_LOG
+          ls -lh "$APK_PATH" | tee -a $ERROR_LOG
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
           echo "build_success=true" >> $GITHUB_OUTPUT
         else
-          echo "错误: APK文件不存在: $APK_PATH"
-          echo "查找所有APK文件:"
-          find app/build/outputs -name "*.apk" -type f || true
+          echo "错误: APK文件不存在: $APK_PATH" | tee -a $ERROR_LOG
+          echo "查找所有APK文件:" | tee -a $ERROR_LOG
+          find app/build/outputs -name "*.apk" -type f 2>&1 | tee -a $ERROR_LOG || true
           echo "build_success=false" >> $GITHUB_OUTPUT
           exit 1
         fi
@@ -252,9 +363,42 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
+    - name: 显示错误日志汇总
+      if: always()
+      run: |
+        echo ""
+        echo "=========================================="
+        echo "构建错误日志汇总"
+        echo "=========================================="
+        if [ -f "$ERROR_LOG" ]; then
+          cat $ERROR_LOG
+        else
+          echo "未找到错误日志文件"
+        fi
+        echo "=========================================="
+        
+    - name: 上传错误日志
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-error-log
+        path: ${{ env.ERROR_LOG }}
+        retention-days: 7
+        
     - name: 构建失败通知
       if: steps.build.outputs.build_success != 'true'
       run: |
-        echo "构建失败，未创建Release"
+        echo ""
+        echo "=========================================="
+        echo "构建失败！"
+        echo "=========================================="
+        echo ""
+        echo "请查看上方的错误日志汇总，或下载错误日志文件查看详细信息。"
+        echo ""
+        if [ -f "$ERROR_LOG" ]; then
+          echo "主要错误："
+          grep -i "error\|失败\|failed" $ERROR_LOG | head -20 || echo "未找到明确的错误信息"
+        fi
+        echo ""
         exit 1
 
