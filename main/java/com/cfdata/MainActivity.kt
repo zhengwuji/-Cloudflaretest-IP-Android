@@ -12,7 +12,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
-import com.cfdata.cfdata.Cfdata
+import cfdata.Cfdata
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
