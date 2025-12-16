@@ -394,34 +394,8 @@ jobs:
         echo "sha=$SHORT_SHA" >> $GITHUB_OUTPUT
         
         
-    - name: 查找所有APK文件
-      id: find_apk
-      if: steps.build.outputs.build_success == 'true'
-      run: |
-        APK_DIR="app/build/outputs/apk/release"
-        
-        # 简单直接：检查并计数
-        if [ ! -d "$APK_DIR" ]; then
-          echo "错误: APK目录不存在"
-          exit 1
-        fi
-        
-        cd "$APK_DIR"
-        APK_COUNT=$(ls -1 *.apk 2>/dev/null | wc -l | tr -d ' ')
-        
-        if [ "$APK_COUNT" -eq "0" ]; then
-          echo "错误: 未找到APK文件"
-          exit 1
-        fi
-        
-        echo "==================================="
-        echo "成功找到 $APK_COUNT 个APK文件:"
-        ls -lh *.apk
-        echo "==================================="
-        echo "apk_count=$APK_COUNT" >> $GITHUB_OUTPUT
-        
     - name: 创建 Release
-      if: steps.build.outputs.build_success == 'true' && steps.find_apk.outputs.apk_count > 0
+      if: steps.build.outputs.build_success == 'true'
       uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ github.run_number }}-${{ steps.changelog.outputs.sha }}
