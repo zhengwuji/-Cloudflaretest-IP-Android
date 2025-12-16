@@ -325,6 +325,7 @@ jobs:
     - name: 构建 APK
       id: build
       run: |
+        ERROR_LOG="build_error.log"
         echo "==========================================" | tee -a $ERROR_LOG
         echo "构建 APK" | tee -a $ERROR_LOG
         echo "==========================================" | tee -a $ERROR_LOG
@@ -336,31 +337,44 @@ jobs:
         
         echo "ANDROID_HOME: $ANDROID_HOME" | tee -a $ERROR_LOG
         echo "ANDROID_NDK_HOME: $ANDROID_NDK_HOME" | tee -a $ERROR_LOG
-        
-        echo "开始构建APK..." | tee -a $ERROR_LOG
-        echo "" | tee -a $ERROR_LOG
-        echo "执行命令: gradle clean assembleRelease --no-daemon --stacktrace" | tee -a $ERROR_LOG
         echo "" | tee -a $ERROR_LOG
         
-        # 捕获完整的Gradle输出
-        set +e  # 临时禁用错误退出
+        # 执行Gradle构建
+        set +e
         gradle clean assembleRelease --no-daemon --stacktrace 2>&1 | tee -a $ERROR_LOG
         GRADLE_EXIT_CODE=$?
-        set -e  # 重新启用错误退出
+        set -e
         
         if [ $GRADLE_EXIT_CODE -ne 0 ]; then
           echo "" | tee -a $ERROR_LOG
           echo "❌ Gradle 构建失败 (退出码: $GRADLE_EXIT_CODE)" | tee -a $ERROR_LOG
-          echo "" | tee -a $ERROR_LOG
-          echo "Gradle 版本信息:" | tee -a $ERROR_LOG
-          gradle --version 2>&1 | tee -a $ERROR_LOG || true
-          echo "" | tee -a $ERROR_LOG
           echo "build_success=false" >> $GITHUB_OUTPUT
-        else
+          exit 1
+        fi
+        
+        # Gradle成功，检查APK
+        echo "==========================================" | tee -a $ERROR_LOG
+        echo "验证APK生成结果" | tee -a $ERROR_LOG
+        echo "==========================================" | tee -a $ERROR_LOG
+        
+        APK_DIR="app/build/outputs/apk/release"
+        if [ ! -d "$APK_DIR" ]; then
           echo "❌ 错误: APK输出目录不存在: $APK_DIR" | tee -a $ERROR_LOG
           echo "build_success=false" >> $GITHUB_OUTPUT
           exit 1
         fi
+        
+        APK_COUNT=$(find "$APK_DIR" -name "*.apk" -type f 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$APK_COUNT" -eq "0" ]; then
+          echo "❌ 错误: 未找到APK文件" | tee -a $ERROR_LOG
+          ls -la "$APK_DIR" | tee -a $ERROR_LOG
+          echo "build_success=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+        
+        echo "✓ 成功生成 $APK_COUNT 个APK文件:" | tee -a $ERROR_LOG
+        find "$APK_DIR" -name "*.apk" -type f -exec ls -lh {} \; | tee -a $ERROR_LOG
+        echo "build_success=true" >> $GITHUB_OUTPUT
         
     - name: 生成更新日志
       id: changelog
