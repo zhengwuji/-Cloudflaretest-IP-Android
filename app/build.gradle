@@ -54,9 +54,3 @@ dependencies {
     implementation(name: 'cfdata-arm64', ext: 'aar')
 }
 
-repositories {
-    flatDir {
-        dirs 'libs'
-    }
-}
-
