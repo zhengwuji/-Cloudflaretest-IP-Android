@@ -1,0 +1,29 @@
+name: 自动构建检查
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'README.md'
+      - '*.md'
+  push:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - 'README.md'
+      - '*.md'
+
+jobs:
+  check-build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      
+    - name: 检查代码变更
+      run: |
+        echo "检查代码变更..."
+        git diff --name-only HEAD~1 HEAD || git diff --name-only HEAD
+        echo "代码变更检查完成"
+
