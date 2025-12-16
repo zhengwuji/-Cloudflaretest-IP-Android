@@ -54,27 +54,39 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
         
+    - name: 安装 aria2（加速下载）
+      run: |
+        echo "安装 aria2 以加速下载..." | tee -a $ERROR_LOG
+        sudo apt-get update -qq
+        sudo apt-get install -y aria2 || {
+          echo "警告: aria2 安装失败，将使用默认下载工具" | tee -a $ERROR_LOG
+        }
+        aria2 --version || echo "aria2 未安装"
+        
     - name: 设置 Android SDK
       uses: android-actions/setup-android@v3
       with:
-        api-level: 34
-        build-tools: 34.0.0
-        ndk-version: '25.1.8937393'
+        packages: |
+          platform-tools
+          platforms;android-34
+          build-tools;34.0.0
+          ndk;25.1.8937393
+        accept-android-sdk-licenses: true
         
     - name: 配置 Android NDK 环境变量
       run: |
-        echo "配置 Android NDK 环境变量..."
-        export ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.1.8937393
+        echo "配置 Android NDK 环境变量..." | tee -a $ERROR_LOG
+        export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/25.1.8937393}
         export NDK_HOME=$ANDROID_NDK_HOME
         echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
         echo "NDK_HOME=$NDK_HOME" >> $GITHUB_ENV
         
         # 验证 NDK 路径
         if [ -d "$ANDROID_NDK_HOME" ]; then
-          echo "✓ NDK 路径有效: $ANDROID_NDK_HOME"
+          echo "✓ NDK 路径有效: $ANDROID_NDK_HOME" | tee -a $ERROR_LOG
           ls -la "$ANDROID_NDK_HOME" | head -5
         else
-          echo "警告: NDK 路径不存在，查找可用的 NDK..."
+          echo "警告: NDK 路径不存在，查找可用的 NDK..." | tee -a $ERROR_LOG
           find $ANDROID_SDK_ROOT/ndk -maxdepth 1 -type d 2>/dev/null | head -5 || true
         fi
       
