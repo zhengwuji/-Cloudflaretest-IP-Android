@@ -67,12 +67,20 @@ jobs:
       uses: android-actions/setup-android@v3
       with:
         packages: |
-          platform-tools
           platforms;android-34
           platforms;android-21
           build-tools;34.0.0
           ndk;25.1.8937393
         accept-android-sdk-licenses: true
+        
+    - name: 安装 platform-tools
+      run: |
+        echo "安装 platform-tools..." | tee -a $ERROR_LOG
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platform-tools" --sdk_root=$ANDROID_SDK_ROOT 2>&1 | tee -a $ERROR_LOG || {
+          echo "尝试使用备用方法安装 platform-tools..." | tee -a $ERROR_LOG
+          $ANDROID_SDK_ROOT/cmdline-tools/*/bin/sdkmanager "platform-tools" --sdk_root=$ANDROID_SDK_ROOT 2>&1 | tee -a $ERROR_LOG || true
+        }
+        echo "✓ platform-tools 安装完成" | tee -a $ERROR_LOG
         
     - name: 配置 Android NDK 环境变量
       run: |
