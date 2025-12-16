@@ -136,16 +136,39 @@ jobs:
         fi
         
     - name: 构建 APK
+      id: build
       run: |
         chmod +x gradlew || true
         export ANDROID_HOME=$ANDROID_SDK_ROOT
+        export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
+        
+        echo "开始构建APK..."
         ./gradlew clean assembleRelease --no-daemon --stacktrace || {
           echo "Gradle wrapper failed, trying direct gradle..."
-          gradle clean assembleRelease --no-daemon --stacktrace
+          gradle clean assembleRelease --no-daemon --stacktrace || {
+            echo "构建失败"
+            exit 1
+          }
         }
+        
+        # 检查APK文件是否存在
+        APK_PATH="app/build/outputs/apk/release/app-release.apk"
+        if [ -f "$APK_PATH" ]; then
+          echo "APK构建成功: $APK_PATH"
+          ls -lh "$APK_PATH"
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "build_success=true" >> $GITHUB_OUTPUT
+        else
+          echo "错误: APK文件不存在: $APK_PATH"
+          echo "查找所有APK文件:"
+          find app/build/outputs -name "*.apk" -type f || true
+          echo "build_success=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
         
     - name: 生成更新日志
       id: changelog
+      if: steps.build.outputs.build_success == 'true'
       run: |
         DATE=$(date +'%Y-%m-%d %H:%M:%S')
         COMMIT_MSG=$(git log -1 --pretty=%B || echo "代码更新")
@@ -154,7 +177,29 @@ jobs:
         echo "commit=$COMMIT_MSG" >> $GITHUB_OUTPUT
         echo "sha=$SHORT_SHA" >> $GITHUB_OUTPUT
         
+    - name: 查找APK文件
+      id: find_apk
+      if: steps.build.outputs.build_success == 'true'
+      run: |
+        APK_PATH="app/build/outputs/apk/release/app-release.apk"
+        if [ -f "$APK_PATH" ]; then
+          echo "apk_file=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "APK文件找到: $APK_PATH"
+          ls -lh "$APK_PATH"
+        else
+          echo "查找所有APK文件..."
+          APK_FILE=$(find app/build/outputs -name "*.apk" -type f | head -1)
+          if [ -n "$APK_FILE" ]; then
+            echo "apk_file=$APK_FILE" >> $GITHUB_OUTPUT
+            echo "找到APK文件: $APK_FILE"
+          else
+            echo "错误: 未找到APK文件"
+            exit 1
+          fi
+        fi
+        
     - name: 创建 Release
+      if: steps.build.outputs.build_success == 'true' && steps.find_apk.outputs.apk_file != ''
       uses: softprops/action-gh-release@v1
       with:
         tag_name: v${{ github.run_number }}-${{ steps.changelog.outputs.sha }}
@@ -187,9 +232,15 @@ jobs:
           3. 安装并运行
           
         files: |
-          app/build/outputs/apk/release/app-release.apk
+          ${{ steps.find_apk.outputs.apk_file }}
         draft: false
         prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 构建失败通知
+      if: steps.build.outputs.build_success != 'true'
+      run: |
+        echo "构建失败，未创建Release"
+        exit 1
 
